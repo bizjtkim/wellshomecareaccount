@@ -658,7 +658,7 @@ function ensureUi(){
     $('daToggle').onclick=()=>setMode(!dragMode);
     $('daToggle').classList.toggle('on',dragMode);
   }
-  const version=document.querySelector('.topHeader .appVersion');if(version)version.textContent='B2 · v.26111116';
+  const version=document.querySelector('.topHeader .appVersion');if(version)version.textContent='B2 · v.26111117';
   const planButton=$('b2ApplyPlan');if(planButton&&!planButton.dataset.daPlanBound){planButton.dataset.daPlanBound='1';planButton.addEventListener('click',e=>{const p=window.__daPendingPlan;if(!p)return;e.preventDefault();e.stopImmediatePropagation();b2PlanReport(p)},true)}
   const staffCards=$('b2StaffList');if(staffCards&&!staffCards.dataset.daDropClickBound){staffCards.dataset.daDropClickBound='1';staffCards.addEventListener('click',e=>{if(Date.now()-justDragged<500){e.preventDefault();e.stopImmediatePropagation()}else if(!window.__daStageInProgress)window.__daPendingPlan=null},true)}
   const targetSelect=$('b2Target');if(targetSelect&&!targetSelect.dataset.daPlanBound){targetSelect.dataset.daPlanBound='1';targetSelect.addEventListener('change',()=>{if(!window.__daStageInProgress){window.__daPendingPlan=null;window.__daFixedTarget=''}})}
@@ -923,6 +923,47 @@ const waitFns=setInterval(()=>{
   const previousRender=render;render=function(){previousRender.apply(this,arguments);updateTerritoryViews()};
   window.__b2TerritoryAllocationPolicy={excluded:[...excluded],share:staffShare,estimate};
   try{render()}catch(_e){try{updateTerritoryViews()}catch(__e){}}
+})();
+</script>
+
+<script id="b2GroupedRegionMode">
+(function(){
+  let grouped=false,outlineLayer=null,wrapped=false;
+  function ensureButton(){
+    const actions=document.querySelector('.mapActions');if(!actions)return false;
+    let button=document.getElementById('b2GroupedRegionToggle');
+    if(!button){button=document.createElement('button');button.id='b2GroupedRegionToggle';button.type='button';button.className='b2-button';button.setAttribute('aria-pressed','false');actions.appendChild(button);button.addEventListener('click',()=>{grouped=!grouped;syncButton();if(typeof updateMap==='function')updateMap()})}
+    syncButton();return true;
+  }
+  function syncButton(){const button=document.getElementById('b2GroupedRegionToggle');if(!button)return;button.textContent=grouped?'지역 구분해서 보기':'지역 묶어서 보기';button.setAttribute('aria-pressed',String(grouped));button.classList.toggle('primary',grouped)}
+  function ringsFor(geometry){if(!geometry)return[];if(geometry.type==='Polygon')return geometry.coordinates?.[0]?[geometry.coordinates[0]]:[];if(geometry.type==='MultiPolygon')return(geometry.coordinates||[]).map(poly=>poly?.[0]).filter(Boolean);return[]}
+  function quantizedPoint(point){return `${Math.round(Number(point[0])*1e5)},${Math.round(Number(point[1])*1e5)}`}
+  function edgeKey(a,b){const ka=quantizedPoint(a),kb=quantizedPoint(b);return ka<kb?`${ka}|${kb}`:`${kb}|${ka}`}
+  function applyGroupedBorders(){
+    if(outlineLayer){outlineLayer.clearLayers();if(map&&!map.hasLayer(outlineLayer))outlineLayer.addTo(map)}
+    if(!grouped||!map||!geoLayer)return;
+    if(!outlineLayer)outlineLayer=L.layerGroup().addTo(map);
+    const managers=[...new Set([...plannerStaffSelection,...(plannerTarget?[plannerTarget]:[])])];if(!managers.length)return;
+    const palette=colorMap(),groups=new Map(managers.map(n=>[n,[]])),selectedOwnerByRegion=new Map();
+    geoLayer.eachLayer(layer=>{const region=regionForFeature(layer.feature);if(!region)return;const owners=b2Owners(region),manager=managers.find(n=>owners.includes(n));if(!manager)return;selectedOwnerByRegion.set(region.region,manager);groups.get(manager)?.push(layer.feature)});
+    geoLayer.eachLayer(layer=>{const region=regionForFeature(layer.feature);if(region&&selectedOwnerByRegion.has(region.region))layer.setStyle({color:'#718196',weight:.65,opacity:.28})});
+    for(const [manager,features] of groups){
+      const edges=new Map();
+      for(const feature of features)for(const ring of ringsFor(feature.geometry))for(let i=0;i<ring.length-1;i++){
+        const a=ring[i],b=ring[i+1];if(!a||!b)continue;const key=edgeKey(a,b),entry=edges.get(key);if(entry)entry.count++;else edges.set(key,{count:1,points:[[Number(a[1]),Number(a[0])],[Number(b[1]),Number(b[0])]]});
+      }
+      const outer=[...edges.values()].filter(edge=>edge.count===1).map(edge=>edge.points);
+      if(outer.length){const line=L.polyline(outer,{color:palette[manager]||'#1d6096',weight:4.4,opacity:1,lineCap:'round',lineJoin:'round',interactive:false,smoothFactor:0,className:'b2-groupOuterBorder'});line.addTo(outlineLayer);line.bringToFront?.()}
+    }
+  }
+  function installUpdateWrapper(){
+    if(wrapped||!window.__daInstalled||typeof updateMap!=='function')return false;
+    const prior=updateMap;updateMap=function(){prior.apply(this,arguments);applyGroupedBorders()};wrapped=true;
+    try{updateMap()}catch(e){}
+    return true;
+  }
+  let attempts=0;const timer=setInterval(()=>{attempts++;ensureButton();if(installUpdateWrapper()||attempts>100)clearInterval(timer)},100);
+  window.__b2GroupedRegionMode={apply:applyGroupedBorders,get enabled(){return grouped}};
 })();
 </script>
 
