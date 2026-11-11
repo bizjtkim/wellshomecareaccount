@@ -658,7 +658,7 @@ function ensureUi(){
     $('daToggle').onclick=()=>setMode(!dragMode);
     $('daToggle').classList.toggle('on',dragMode);
   }
-  const version=document.querySelector('.topHeader .appVersion');if(version)version.textContent='B2 · v.26111117';
+  const version=document.querySelector('.topHeader .appVersion');if(version)version.textContent='B2 · v.26111119';
   const planButton=$('b2ApplyPlan');if(planButton&&!planButton.dataset.daPlanBound){planButton.dataset.daPlanBound='1';planButton.addEventListener('click',e=>{const p=window.__daPendingPlan;if(!p)return;e.preventDefault();e.stopImmediatePropagation();b2PlanReport(p)},true)}
   const staffCards=$('b2StaffList');if(staffCards&&!staffCards.dataset.daDropClickBound){staffCards.dataset.daDropClickBound='1';staffCards.addEventListener('click',e=>{if(Date.now()-justDragged<500){e.preventDefault();e.stopImmediatePropagation()}else if(!window.__daStageInProgress)window.__daPendingPlan=null},true)}
   const targetSelect=$('b2Target');if(targetSelect&&!targetSelect.dataset.daPlanBound){targetSelect.dataset.daPlanBound='1';targetSelect.addEventListener('change',()=>{if(!window.__daStageInProgress){window.__daPendingPlan=null;window.__daFixedTarget=''}})}
@@ -928,42 +928,44 @@ const waitFns=setInterval(()=>{
 
 <script id="b2GroupedRegionMode">
 (function(){
-  let grouped=false,outlineLayer=null,wrapped=false;
+  let grouped=false,wrapped=false;
   function ensureButton(){
     const actions=document.querySelector('.mapActions');if(!actions)return false;
     let button=document.getElementById('b2GroupedRegionToggle');
-    if(!button){button=document.createElement('button');button.id='b2GroupedRegionToggle';button.type='button';button.className='b2-button';button.setAttribute('aria-pressed','false');actions.appendChild(button);button.addEventListener('click',()=>{grouped=!grouped;syncButton();if(typeof updateMap==='function')updateMap()})}
+    if(!button){button=document.createElement('button');button.id='b2GroupedRegionToggle';button.type='button';button.className='b2-button';button.setAttribute('aria-pressed','false');button.title='선택 담당자별 지역을 같은 색으로 묶어 표시합니다';actions.appendChild(button);button.addEventListener('click',()=>{grouped=!grouped;syncButton();if(typeof updateMap==='function')updateMap()})}
     syncButton();return true;
   }
   function syncButton(){const button=document.getElementById('b2GroupedRegionToggle');if(!button)return;button.textContent=grouped?'지역 구분해서 보기':'지역 묶어서 보기';button.setAttribute('aria-pressed',String(grouped));button.classList.toggle('primary',grouped)}
-  function ringsFor(geometry){if(!geometry)return[];if(geometry.type==='Polygon')return geometry.coordinates?.[0]?[geometry.coordinates[0]]:[];if(geometry.type==='MultiPolygon')return(geometry.coordinates||[]).map(poly=>poly?.[0]).filter(Boolean);return[]}
-  function quantizedPoint(point){return `${Math.round(Number(point[0])*1e5)},${Math.round(Number(point[1])*1e5)}`}
-  function edgeKey(a,b){const ka=quantizedPoint(a),kb=quantizedPoint(b);return ka<kb?`${ka}|${kb}`:`${kb}|${ka}`}
-  function applyGroupedBorders(){
-    if(outlineLayer){outlineLayer.clearLayers();if(map&&!map.hasLayer(outlineLayer))outlineLayer.addTo(map)}
+  function applyGroupedColors(){
     if(!grouped||!map||!geoLayer)return;
-    if(!outlineLayer)outlineLayer=L.layerGroup().addTo(map);
     const managers=[...new Set([...plannerStaffSelection,...(plannerTarget?[plannerTarget]:[])])];if(!managers.length)return;
-    const palette=colorMap(),groups=new Map(managers.map(n=>[n,[]])),selectedOwnerByRegion=new Map();
-    geoLayer.eachLayer(layer=>{const region=regionForFeature(layer.feature);if(!region)return;const owners=b2Owners(region),manager=managers.find(n=>owners.includes(n));if(!manager)return;selectedOwnerByRegion.set(region.region,manager);groups.get(manager)?.push(layer.feature)});
-    geoLayer.eachLayer(layer=>{const region=regionForFeature(layer.feature);if(region&&selectedOwnerByRegion.has(region.region))layer.setStyle({color:'#718196',weight:.65,opacity:.28})});
-    for(const [manager,features] of groups){
-      const edges=new Map();
-      for(const feature of features)for(const ring of ringsFor(feature.geometry))for(let i=0;i<ring.length-1;i++){
-        const a=ring[i],b=ring[i+1];if(!a||!b)continue;const key=edgeKey(a,b),entry=edges.get(key);if(entry)entry.count++;else edges.set(key,{count:1,points:[[Number(a[1]),Number(a[0])],[Number(b[1]),Number(b[0])]]});
-      }
-      const outer=[...edges.values()].filter(edge=>edge.count===1).map(edge=>edge.points);
-      if(outer.length){const line=L.polyline(outer,{color:palette[manager]||'#1d6096',weight:4.4,opacity:1,lineCap:'round',lineJoin:'round',interactive:false,smoothFactor:0,className:'b2-groupOuterBorder'});line.addTo(outlineLayer);line.bringToFront?.()}
-    }
+    const palette=colorMap(),ownersByRegion=new Map();
+    geoLayer.eachLayer(layer=>{const region=regionForFeature(layer.feature);if(!region)return;const owner=managers.find(n=>b2Owners(region).includes(n));if(owner)ownersByRegion.set(region.region,owner)});
+    geoLayer.eachLayer(layer=>{const region=regionForFeature(layer.feature),owner=region&&ownersByRegion.get(region.region);if(!owner)return;layer.setStyle(selectedRegions.has(region.region)?{color:'#ff1744',weight:4.4,opacity:1,fillColor:palette[owner]||'#1d6096',fillOpacity:1}:{color:'#586d80',weight:1.1,opacity:1,fillColor:palette[owner]||'#1d6096',fillOpacity:.88})});
   }
   function installUpdateWrapper(){
     if(wrapped||!window.__daInstalled||typeof updateMap!=='function')return false;
-    const prior=updateMap;updateMap=function(){prior.apply(this,arguments);applyGroupedBorders()};wrapped=true;
+    const prior=updateMap;updateMap=function(){prior.apply(this,arguments);applyGroupedColors()};wrapped=true;
     try{updateMap()}catch(e){}
     return true;
   }
   let attempts=0;const timer=setInterval(()=>{attempts++;ensureButton();if(installUpdateWrapper()||attempts>100)clearInterval(timer)},100);
-  window.__b2GroupedRegionMode={apply:applyGroupedBorders,get enabled(){return grouped}};
+  window.__b2GroupedRegionMode={apply:applyGroupedColors,get enabled(){return grouped}};
+})();
+</script>
+
+<script id="b2SelectionFocusLegend">
+(function(){
+  const style=document.createElement('style');style.textContent=`#b2SelectedManagerLegend{position:absolute;left:12px;bottom:12px;z-index:1200;min-width:168px;max-width:min(270px,48%);padding:10px 12px;border:1px solid #c6d4e2;border-radius:9px;background:rgba(255,255,255,.96);box-shadow:0 3px 14px #18324a2b;color:#183650;font:12px/1.35 Inter,'Noto Sans KR',sans-serif;pointer-events:none}#b2SelectedManagerLegend[hidden]{display:none!important}#b2SelectedManagerLegend b{display:block;margin-bottom:6px;font-size:12px}#b2SelectedManagerLegend .b2-selLegendRow{display:flex;align-items:center;gap:7px;margin-top:4px;min-width:0}#b2SelectedManagerLegend i{display:inline-block;width:13px;height:13px;flex:0 0 13px;border:1px solid #34495e;border-radius:3px}#b2SelectedManagerLegend span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#b2SelectedManagerLegend small{display:block;margin-top:6px;color:#66798b;font-size:10px}`;document.head.appendChild(style);
+  function ensureLegend(){const wrap=document.querySelector('.mapwrap');if(!wrap)return null;wrap.style.position='relative';let el=document.getElementById('b2SelectedManagerLegend');if(!el){el=document.createElement('div');el.id='b2SelectedManagerLegend';el.hidden=true;el.setAttribute('aria-label','선택된 담당자 지역 색상 범례');wrap.appendChild(el)}return el}
+  function refreshLegend(){const el=ensureLegend();if(!el)return;const names=[...new Set([...plannerStaffSelection,...(plannerTarget?[plannerTarget]:[])])];if(!names.length){el.hidden=true;return}const palette=colorMap();el.hidden=false;el.innerHTML=`<b>선택 담당자 지역 색상</b>${names.map(n=>`<div class="b2-selLegendRow"><i style="background:${esc(palette[n]||'#1d6096')}"></i><span>${esc(n)}${plannerTarget===n?' · 이동 대상':plannerStaffSelection.has(n)?' · 정리 담당자':''}</span></div>`).join('')}<small>묶어서 보기: 채움색 · 구분해서 보기: 테두리색</small>`}
+  function rowsForSelection(){const names=new Set([...plannerStaffSelection,...(plannerTarget?[plannerTarget]:[])]);return names.size?state.regions.filter(r=>b2Owners(r).some(n=>names.has(n))):[]}
+  function fitRows(rows){if(!map||!geoLayer)return;const names=new Set((rows||[]).map(r=>r.region)),bounds=[];geoLayer.eachLayer(layer=>{const r=regionForFeature(layer.feature);if(r&&names.has(r.region))bounds.push(layerBounds(layer))});if(!bounds.length)return;let all=bounds[0];for(const b of bounds.slice(1))all.extend(b);zoomFitPending=true;map.stop?.();map.invalidateSize({pan:false,debounceMoveend:true});requestAnimationFrame(()=>{map.invalidateSize({pan:false,debounceMoveend:true});map.fitBounds(all,{paddingTopLeft:[5,5],paddingBottomRight:[5,5],maxZoom:18,animate:false});requestAnimationFrame(()=>{zoomFitPending=false;drawVisibleLabels()})})}
+  function fitFocused(){if(!map||!geoLayer)return;const rows=rowsForSelection();if(rows.length){fitRows(rows);return}if(!plannerStaffSelection.size&&!plannerTarget){map.stop?.();map.invalidateSize({pan:false,debounceMoveend:true});map.fitBounds(geoLayer.getBounds(),{padding:[12,12],animate:false})}}
+  const priorToggle=b2ToggleStaff;b2ToggleStaff=function(){priorToggle.apply(this,arguments);refreshLegend();setTimeout(fitFocused,40);setTimeout(fitFocused,180)};
+  const target=document.getElementById('b2Target');target?.addEventListener('change',()=>{refreshLegend();setTimeout(fitFocused,60);setTimeout(fitFocused,200)});
+  let attempts=0;const timer=setInterval(()=>{attempts++;ensureLegend();refreshLegend();if(document.getElementById('b2StaffList')||attempts>100)clearInterval(timer)},100);
+  window.__b2SelectionFocusLegend={refresh:refreshLegend,fit:fitFocused};
 })();
 </script>
 
