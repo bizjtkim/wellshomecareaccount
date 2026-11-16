@@ -1,5 +1,4 @@
 {
-  "apiBaseUrl": "https://YOUR-TEST-WORKER.workers.dev",
-  "pollIntervalMs": 30000,
-  "draftPollIntervalMs": 30000
+  "apiBaseUrl": "https://wellshomecareaccount-test-data.biz-jtkim.workers.dev/",
+  "pollIntervalMs": 30000
 }
