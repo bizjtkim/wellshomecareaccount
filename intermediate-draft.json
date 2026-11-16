@@ -1,8 +1,1 @@
-{
-  "schemaVersion": 1,
-  "appVersion": "26111606",
-  "updatedAt": null,
-  "updatedBy": "",
-  "baseStateSha": "",
-  "tasks": []
-}
+{"schemaVersion":1,"appVersion":"26111606","updatedAt":"2026-11-16T04:53:30.859Z","updatedBy":"김진태","baseStateSha":"74a1173bc070eb4e4dcf3eaae28660158085707f","tasks":[{"id":"1794804809614-dvftz37g84o","label":"지역 재배치 계획 · 정리 담당자 최호태 → 대상 담당자 선이성","plan":{"format":"homecare-territory-reallocation-plan","version":1,"sourceSignature":"ac94746542d375bd12ae","sourceWorkbook":"지역분석데이터_v1_20261111.xlsx","createdAt":"2026-11-16T04:53:26.716Z","label":"지역 재배치 계획 · 정리 담당자 최호태 → 대상 담당자 선이성","peopleAdditions":[],"peopleRemovals":[],"changes":[{"region":"경기도 여주시","beforeStaffs":["최호태"],"afterStaffs":["선이성"],"assignmentAvg":6.5,"assignmentCompleteAvg":5,"assignmentRows4m":26,"assignmentCompleteRows4m":9,"accountCount":30},{"region":"경기도 이천시","beforeStaffs":["최호태"],"afterStaffs":["선이성"],"assignmentAvg":21,"assignmentCompleteAvg":15,"assignmentRows4m":84,"assignmentCompleteRows4m":40,"accountCount":77}],"sourceStaffs":["최호태"],"targetStaff":"선이성"}}]}
